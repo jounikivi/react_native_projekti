@@ -1,94 +1,77 @@
 import React, { useState, useContext } from 'react';
-import { View, TextInput, Text, Alert } from 'react-native';
+import { View, Text, TextInput, Alert, Image } from 'react-native';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import CustomButton from '../components/CustomButton';
 import { AppContext } from '../context/AppContext';
-import { addPlantScreenStyles as styles } from '../styles/styles';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import { commonStyles } from '../styles/commonStyles';
 import * as ImagePicker from 'expo-image-picker';
 
-// Näkymä uuden kasvin lisäämiselle
 const AddPlantScreen = ({ navigation }) => {
   const { addPlant } = useContext(AppContext);
+
   const [name, setName] = useState('');
   const [species, setSpecies] = useState('');
   const [nextWatering, setNextWatering] = useState(new Date());
   const [image, setImage] = useState(null);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
 
-  // Ajan valintatoiminto
-  const handleConfirmDate = (date) => {
+  // Päivitä seuraavan kastelun päivämäärä
+  const handleConfirm = (date) => {
     setNextWatering(date);
     setDatePickerVisibility(false);
   };
 
-  // Kuvan valintatoiminto
-  const pickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Lupa tarvitaan', 'Sovellus tarvitsee luvan käyttää galleriaa.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setImage(result.uri);
-    }
-  };
-
-  // Kasvin lisääminen
-  const handleAddPlant = () => {
+  // Lisää uusi kasvi
+  const handleAddPlant = async () => {
     if (!name || !species) {
-      Alert.alert('Virhe', 'Täytä kaikki kentät.');
+      Alert.alert('Virhe', 'Täytä kaikki kentät ennen kasvin lisäämistä.');
       return;
     }
-
-    addPlant({
+    const newPlant = {
       id: Date.now(),
       name,
       species,
       nextWatering: nextWatering.toISOString(),
       image,
-    });
-
-    Alert.alert('Onnistui', 'Kasvi lisätty.');
+    };
+    await addPlant(newPlant);
+    Alert.alert('Onnistui', 'Kasvi lisätty onnistuneesti!');
     navigation.goBack();
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Kasvin nimi</Text>
+    <View style={commonStyles.container}>
+      <Text style={commonStyles.text}>Kasvin nimi</Text>
       <TextInput
-        style={styles.input}
+        style={commonStyles.input}
         placeholder="Esim. Aloe Vera"
         value={name}
         onChangeText={setName}
       />
-      <Text style={styles.label}>Lajike</Text>
+      <Text style={commonStyles.text}>Lajike</Text>
       <TextInput
-        style={styles.input}
+        style={commonStyles.input}
         placeholder="Esim. Aloe"
         value={species}
         onChangeText={setSpecies}
       />
-      <Text style={styles.label}>Seuraava kastelu</Text>
-      <CustomButton
-        title={`Valitse aika: ${nextWatering.toLocaleString()}`}
-        onPress={() => setDatePickerVisibility(true)}
-      />
+      <Text style={commonStyles.text}>Seuraava kastelu</Text>
+      <CustomButton title="Valitse kasteluaika" onPress={() => setDatePickerVisibility(true)} />
+      <Text style={commonStyles.text}>
+        Valittu aika: {nextWatering.toLocaleString('fi-FI')}
+      </Text>
       <DateTimePickerModal
         isVisible={isDatePickerVisible}
         mode="datetime"
-        onConfirm={handleConfirmDate}
+        onConfirm={handleConfirm}
         onCancel={() => setDatePickerVisibility(false)}
       />
-      <Text style={styles.label}>Kasvin kuva</Text>
-      <CustomButton title="Valitse kuva galleriasta" onPress={pickImage} />
-      {image && <Text style={styles.imageText}>Kuva valittu</Text>}
+      <Text style={commonStyles.text}>Kasvin kuva</Text>
+      <CustomButton title="Valitse kuva" onPress={async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+        if (!result.canceled) setImage(result.uri);
+      }} />
+      {image && <Image source={{ uri: image }} style={commonStyles.image} />}
       <CustomButton title="Lisää kasvi" onPress={handleAddPlant} />
     </View>
   );

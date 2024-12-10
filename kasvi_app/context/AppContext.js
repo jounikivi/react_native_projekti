@@ -4,37 +4,37 @@ import { storeData, getData } from '../services/storageService';
 
 export const AppContext = createContext();
 
-// Sovelluksen alustava tila, jossa on tyhjä lista kasveista
+// Alustava tila
 const initialState = {
-  plants: [],
+  plants: [], // Lista lisätyistä kasveista
 };
 
 export const AppProvider = ({ children }) => {
   const [state, dispatch] = useReducer(AppReducer, initialState);
 
-  // Ladataan tallennetut kasvit AsyncStoragesta sovelluksen käynnistyessä
+  // Lataa tallennetut kasvit sovelluksen käynnistyessä
   useEffect(() => {
     const loadPlants = async () => {
-      const storedPlants = await getData('plants'); // Hakee tallennetut kasvit
+      const storedPlants = await getData('plants');
       if (storedPlants) {
-        dispatch({ type: 'LOAD_PLANTS', payload: storedPlants }); // Päivittää tilan
+        dispatch({ type: 'LOAD_PLANTS', payload: storedPlants });
       }
     };
     loadPlants();
   }, []);
 
-  // Lisää kasvi ja tallentaa sen AsyncStorageen
+  // Lisää kasvi ja tallenna se
   const addPlant = async (plant) => {
     const updatedPlants = [...state.plants, plant];
     dispatch({ type: 'ADD_PLANT', payload: plant });
-    await storeData('plants', updatedPlants); // Päivittää tallennuksen
+    await storeData('plants', updatedPlants); // Päivitä tallennus
   };
 
-  // Poistaa kasvin ja päivittää AsyncStoragen
+  // Poista kasvi ja päivitä tallennus
   const removePlant = async (id) => {
     const updatedPlants = state.plants.filter((plant) => plant.id !== id);
     dispatch({ type: 'REMOVE_PLANT', payload: id });
-    await storeData('plants', updatedPlants); // Päivittää tallennuksen
+    await storeData('plants', updatedPlants);
   };
 
   return (
