@@ -1,0 +1,762 @@
+mulla on tälläinen sovellus react-native tehty miltä tämän näyttää
+
+components
+CustomButton.js
+import React from 'react';
+import { TouchableOpacity, Text } from 'react-native';
+import { customButtonStyles as styles } from '../styles/styles';
+
+// Räätälöity nappi
+const CustomButton = ({ title, onPress, color = '#00796b' }) => (
+  <TouchableOpacity style={[styles.button, { backgroundColor: color }]} onPress={onPress}>
+    <Text style={styles.text}>{title}</Text>
+  </TouchableOpacity>
+);
+
+export default CustomButton;
+
+PlantCard.js
+import React, { useContext } from 'react';
+import { View, Text, TouchableOpacity, Button } from 'react-native';
+import { commonStyles } from '../styles/commonStyles';
+import { AppContext } from '../context/AppContext';
+
+const PlantCard = ({ plant, onPress }) => {
+  const { removePlant } = useContext(AppContext); // Käytä poisto-funktiota kontekstista
+
+  return (
+    <TouchableOpacity onPress={onPress} style={commonStyles.card}>
+      <Text style={commonStyles.text}>{plant.name || 'Ei nimeä'}</Text>
+      <Text style={commonStyles.text}>Lajike: {plant.species || 'Ei lajiketta'}</Text>
+      <Text style={commonStyles.text}>
+        Seuraava kastelu:{' '}
+        {plant.nextWatering
+          ? new Date(plant.nextWatering).toLocaleString('fi-FI')
+          : 'Ei asetettu'}
+      </Text>
+      <View style={commonStyles.buttonContainer}>
+        <Button
+          title="Poista"
+          color="red"
+          onPress={() => removePlant(plant.id)} // Poista kasvi
+        />
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+export default PlantCard;
+
+ReminderCard.js
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+const ReminderCard = ({ reminder }) => {
+  return (
+    <View style={styles.card}>
+      {/* Muistutuksen otsikko */}
+      <Text style={styles.title}>{reminder.title}</Text>
+
+      {/* Muistutuksen kuvaus */}
+      <Text style={styles.details}>{reminder.description}</Text>
+
+      {/* Muistutuksen ajankohta */}
+      <Text style={styles.date}>
+        Ajankohta: {new Date(reminder.date).toLocaleString('fi-FI', {
+          timeZone: 'Europe/Helsinki',
+        })}
+      </Text>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  card: {
+    padding: 15,
+    marginVertical: 10,
+    backgroundColor: '#e0f7fa', // Vaaleansininen taustaväri
+    borderRadius: 10,
+    elevation: 2, // Varjoefekti (Android)
+    shadowColor: '#000', // Varjon väri (iOS)
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#00796b', // Tumma vihreä
+  },
+  details: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 5,
+  },
+  date: {
+    fontSize: 14,
+    color: '#004d40', // Tumma vihreä
+  },
+});
+
+export default ReminderCard;
+
+context
+AppContext.js
+import React, { createContext, useReducer, useEffect } from 'react';
+import AppReducer from './AppReducer';
+import { storeData, getData } from '../services/storageService';
+
+export const AppContext = createContext();
+
+// Alustava tila
+const initialState = {
+  plants: [], // Lista lisätyistä kasveista
+};
+
+export const AppProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(AppReducer, initialState);
+
+  // Lataa tallennetut kasvit sovelluksen käynnistyessä
+  useEffect(() => {
+    const loadPlants = async () => {
+      const storedPlants = await getData('plants');
+      if (storedPlants) {
+        dispatch({ type: 'LOAD_PLANTS', payload: storedPlants });
+      }
+    };
+    loadPlants();
+  }, []);
+
+  // Lisää kasvi ja tallenna se
+  const addPlant = async (plant) => {
+    const updatedPlants = [...state.plants, plant];
+    dispatch({ type: 'ADD_PLANT', payload: plant });
+    await storeData('plants', updatedPlants); // Päivitä tallennus
+  };
+
+  // Poista kasvi ja päivitä tallennus
+  const removePlant = async (id) => {
+    const updatedPlants = state.plants.filter((plant) => plant.id !== id);
+    dispatch({ type: 'REMOVE_PLANT', payload: id });
+    await storeData('plants', updatedPlants);
+  };
+
+  return (
+    <AppContext.Provider value={{ ...state, addPlant, removePlant }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+AppProvider.js
+import React, { useReducer } from 'react';
+import { AppContext } from './AppContext';
+import AppReducer from './AppReducer';
+
+// Alustava tila
+const initialState = {
+  plants: [], // Lista kasveista
+};
+
+export const AppProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(AppReducer, initialState);
+
+  // Esimerkki toiminnoista
+  const addPlant = (plant) => {
+    dispatch({ type: 'ADD_PLANT', payload: plant });
+  };
+
+  const removePlant = (id) => {
+    dispatch({ type: 'REMOVE_PLANT', payload: id });
+  };
+
+  return (
+    <AppContext.Provider value={{ ...state, addPlant, removePlant }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+AppReducer.js
+const AppReducer = (state, action) => {
+  switch (action.type) {
+    case 'LOAD_PLANTS':
+      return {
+        ...state,
+        plants: action.payload,
+      };
+    case 'ADD_PLANT':
+      return {
+        ...state,
+        plants: [...state.plants, action.payload],
+      };
+    case 'REMOVE_PLANT':
+      return {
+        ...state,
+        plants: state.plants.filter((plant) => plant.id !== action.payload),
+      };
+    default:
+      return state;
+  }
+};
+
+export default AppReducer;
+
+navigation
+BottomTabNavigator.js
+import React from 'react';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import HomeScreen from '../screens/HomeScreen';
+import AddPlantScreen from '../screens/AddPlantScreen';
+import PlantProfileScreen from '../screens/PlantProfileScreen';
+import TestNotification from '../services/TestNotification'; // Päivitetty polku
+import { Ionicons } from '@expo/vector-icons';
+
+const Tab = createBottomTabNavigator();
+
+const BottomTabNavigator = () => {
+  return (
+    <Tab.Navigator
+      initialRouteName="Home"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ color, size }) => {
+          let iconName;
+
+          if (route.name === 'Home') {
+            iconName = 'home';
+          } else if (route.name === 'Add Plant') {
+            iconName = 'add-circle';
+          } else if (route.name === 'Profile') {
+            iconName = 'leaf';
+          } else if (route.name === 'Test Notification') {
+            iconName = 'notifications';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#00796b',
+        tabBarInactiveTintColor: 'gray',
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Etusivu' }} />
+      <Tab.Screen name="Add Plant" component={AddPlantScreen} options={{ tabBarLabel: 'Lisää Kasvi' }} />
+      <Tab.Screen name="Profile" component={PlantProfileScreen} options={{ tabBarLabel: 'Profiili' }} />
+      <Tab.Screen
+        name="Test Notification"
+        component={TestNotification}
+        options={{ tabBarLabel: 'Testi' }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+export default BottomTabNavigator;
+
+StackNavigator.js
+import React from 'react';
+import { createStackNavigator } from '@react-navigation/stack';
+import HomeScreen from '../screens/HomeScreen';
+import AddPlantScreen from '../screens/AddPlantScreen';
+import PlantProfileScreen from '../screens/PlantProfileScreen';
+
+const Stack = createStackNavigator();
+
+const StackNavigator = () => {
+  return (
+    <Stack.Navigator initialRouteName="Home">
+      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="AddPlant" component={AddPlantScreen} />
+      <Stack.Screen name="PlantProfile" component={PlantProfileScreen} />
+    </Stack.Navigator>
+  );
+};
+
+export default StackNavigator;
+
+screens
+AddPlantScreen.js
+import React, { useState, useContext } from 'react';
+import { View, Text, TextInput, Alert, Image } from 'react-native';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import CustomButton from '../components/CustomButton';
+import { AppContext } from '../context/AppContext';
+import { commonStyles } from '../styles/commonStyles';
+import * as ImagePicker from 'expo-image-picker';
+
+const AddPlantScreen = ({ navigation }) => {
+  const { addPlant } = useContext(AppContext);
+
+  const [name, setName] = useState('');
+  const [species, setSpecies] = useState('');
+  const [nextWatering, setNextWatering] = useState(new Date());
+  const [image, setImage] = useState(null);
+  const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+
+  // Päivitä seuraavan kastelun päivämäärä
+  const handleConfirm = (date) => {
+    setNextWatering(date);
+    setDatePickerVisibility(false);
+  };
+
+  // Lisää uusi kasvi
+  const handleAddPlant = async () => {
+    if (!name || !species) {
+      Alert.alert('Virhe', 'Täytä kaikki kentät ennen kasvin lisäämistä.');
+      return;
+    }
+    const newPlant = {
+      id: Date.now(),
+      name,
+      species,
+      nextWatering: nextWatering.toISOString(),
+      image,
+    };
+    await addPlant(newPlant);
+    Alert.alert('Onnistui', 'Kasvi lisätty onnistuneesti!');
+    navigation.goBack();
+  };
+
+  return (
+    <View style={commonStyles.container}>
+      <Text style={commonStyles.text}>Kasvin nimi</Text>
+      <TextInput
+        style={commonStyles.input}
+        placeholder="Esim. Aloe Vera"
+        value={name}
+        onChangeText={setName}
+      />
+      <Text style={commonStyles.text}>Lajike</Text>
+      <TextInput
+        style={commonStyles.input}
+        placeholder="Esim. Aloe"
+        value={species}
+        onChangeText={setSpecies}
+      />
+      <Text style={commonStyles.text}>Seuraava kastelu</Text>
+      <CustomButton title="Valitse kasteluaika" onPress={() => setDatePickerVisibility(true)} />
+      <Text style={commonStyles.text}>
+        Valittu aika: {nextWatering.toLocaleString('fi-FI')}
+      </Text>
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible}
+        mode="datetime"
+        onConfirm={handleConfirm}
+        onCancel={() => setDatePickerVisibility(false)}
+      />
+      <Text style={commonStyles.text}>Kasvin kuva</Text>
+      <CustomButton title="Valitse kuva" onPress={async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
+        if (!result.canceled) setImage(result.uri);
+      }} />
+      {image && <Image source={{ uri: image }} style={commonStyles.image} />}
+      <CustomButton title="Lisää kasvi" onPress={handleAddPlant} />
+    </View>
+  );
+};
+
+export default AddPlantScreen;
+
+HomeScreen.js
+import React, { useContext } from 'react';
+import { View, FlatList, Text } from 'react-native';
+import PlantCard from '../components/PlantCard';
+import { AppContext } from '../context/AppContext';
+import { commonStyles } from '../styles/commonStyles';
+
+const HomeScreen = ({ navigation }) => {
+  const { plants } = useContext(AppContext); // Lataa kasvit kontekstista
+
+  return (
+    <View style={commonStyles.container}>
+      {plants.length === 0 ? (
+        <Text style={commonStyles.text}>Ei kasveja lisättynä.</Text>
+      ) : (
+        <FlatList
+          data={plants}
+          keyExtractor={(item) => item.id.toString()} // Uniikki avain jokaiselle kasville
+          renderItem={({ item }) => (
+            <PlantCard
+              plant={item}
+              onPress={() => navigation.navigate('Profile', { plant: item })}
+            />
+          )}
+        />
+      )}
+    </View>
+  );
+};
+
+export default HomeScreen;
+
+PlantProfileScreen.js
+import React from 'react';
+import { View, Text, Image } from 'react-native';
+import { plantProfileScreenStyles as styles } from '../styles/styles';
+
+// Näyttää kasvin tiedot
+const PlantProfileScreen = ({ route }) => {
+  const { plant } = route.params || {};
+
+  if (!plant) {
+    return (
+      <View style={styles.container}>
+        <Text>Ei tietoja valitusta kasvista</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Image source={{ uri: plant.image || 'https://via.placeholder.com/150' }} style={styles.image} />
+      <Text style={styles.name}>{plant.name}</Text>
+      <Text>Lajike: {plant.species}</Text>
+    </View>
+  );
+};
+
+export default PlantProfileScreen;
+
+services
+TestNotification.js
+import React from 'react';
+import { Button, View, StyleSheet, Alert } from 'react-native';
+import { scheduleNotification } from './notificationService'; // Korjattu polku
+
+const TestNotification = () => {
+  const handleTestNotification = async () => {
+    try {
+      const date = new Date(Date.now() + 10000); // 10 sekunnin päästä
+      await scheduleNotification('Testimuistutus', 'Tämä on testimuistutus!', date);
+      Alert.alert('Onnistui', `Muistutus ajastettu: ${date.toLocaleTimeString()}`);
+    } catch (error) {
+      console.error('Virhe testimuistutuksessa:', error);
+      Alert.alert('Virhe', 'Muistutuksen ajastus epäonnistui.');
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Button title="Testaa muistutus (10 sekunnin päästä)" onPress={handleTestNotification} />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
+export default TestNotification;
+
+api.js
+notificationService.js
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+export const requestNotificationPermissions = async () => {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    console.log('Ilmoituslupien tila:', status);
+    if (status !== 'granted') {
+      const { status: newStatus } = await Notifications.requestPermissionsAsync();
+      console.log('Uusi ilmoituslupien tila:', newStatus);
+      return newStatus === 'granted';
+    }
+    return true;
+  } catch (error) {
+    console.error('Virhe ilmoituslupia pyydettäessä:', error);
+    return false;
+  }
+};
+
+export const scheduleNotification = async (title, body, date) => {
+  if (new Date(date) <= new Date()) {
+    console.error('Päivämäärä on menneisyydessä. Muistutusta ei voi ajastaa.');
+    return;
+  }
+
+  const hasPermission = await requestNotificationPermissions();
+  if (!hasPermission) {
+    console.error('Ilmoituslupia ei myönnetty.');
+    return;
+  }
+
+  try {
+    console.log('Ajastetaan muistutus päivämäärällä:', new Date(date));
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: true,
+      },
+      trigger: Platform.OS === 'ios' ? { date: new Date(date) } : { seconds: Math.floor((new Date(date) - Date.now()) / 1000) },
+    });
+    console.log(`Muistutus ajastettu ID:llä ${id}`);
+    return id;
+  } catch (error) {
+    console.error('Virhe muistutuksen ajastamisessa:', error);
+  }
+};
+
+export const cancelAllNotifications = async () => {
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    console.log('Kaikki muistutukset peruttu.');
+  } catch (error) {
+    console.error('Virhe kaikkien muistutusten peruuttamisessa:', error);
+  }
+};
+
+storageService.js
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Tallennus: Tallentaa tietyn avain-arvo-parin paikallisesti.
+export const storeData = async (key, value) => {
+  try {
+    const jsonValue = JSON.stringify(value);
+    await AsyncStorage.setItem(key, jsonValue);
+    console.log(`Data tallennettu: ${key}`);
+  } catch (error) {
+    console.error(`Virhe tallennuksessa: ${error}`);
+  }
+};
+
+// Haku: Hakee tietyn avaimen perusteella tallennetun arvon.
+export const getData = async (key) => {
+  try {
+    const jsonValue = await AsyncStorage.getItem(key);
+    return jsonValue != null ? JSON.parse(jsonValue) : null;
+  } catch (error) {
+    console.error(`Virhe haussa: ${error}`);
+  }
+};
+
+// Poisto: Poistaa tietyn avaimen perusteella tallennetun datan.
+export const removeData = async (key) => {
+  try {
+    await AsyncStorage.removeItem(key);
+    console.log(`Data poistettu: ${key}`);
+  } catch (error) {
+    console.error(`Virhe poistossa: ${error}`);
+  }
+};
+
+styles
+commonStyles.js
+import { StyleSheet } from 'react-native';
+
+export const commonStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  text: {
+    fontSize: 16,
+    marginVertical: 5,
+    color: '#333',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 20,
+  },
+  card: {
+    padding: 15,
+    marginVertical: 10,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    elevation: 3,
+  },
+  buttonContainer: {
+    marginTop: 10,
+    alignItems: 'flex-end',
+  },
+  image: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    marginVertical: 10,
+  },
+});
+
+styles.js
+import { StyleSheet, Dimensions } from 'react-native';
+
+const { width } = Dimensions.get('window');
+
+// Yleiset tyylit
+export const globalStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: '#fff',
+  },
+  text: {
+    fontSize: 16,
+    color: '#555',
+  },
+});
+
+// Komponenttikohtaiset tyylit
+export const customButtonStyles = StyleSheet.create({
+  button: {
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  text: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+});
+
+export const plantCardStyles = StyleSheet.create({
+  card: {
+    width: width * 0.9,
+    padding: 15,
+    marginVertical: 10,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    elevation: 3,
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  details: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 5,
+  },
+});
+
+export const reminderCardStyles = StyleSheet.create({
+  card: {
+    padding: 15,
+    marginVertical: 10,
+    backgroundColor: '#e0f7fa',
+    borderRadius: 10,
+    elevation: 2,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#00796b',
+  },
+  details: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 5,
+  },
+  date: {
+    fontSize: 14,
+    color: '#004d40',
+  },
+});
+
+// Näkymäkohtaiset tyylit
+export const homeScreenStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: '#fff',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center', // Keskitetään sisältö
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#555',
+    textAlign: 'center',
+    marginVertical: 5, // Sopiva etäisyys teksteille
+  },
+  emptyImage: {
+    width: 100,
+    height: 100,
+    marginBottom: 15, // Kuva ja teksti erillään
+  },
+});
+
+export const addPlantScreenStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 20,
+    width: '100%',
+  },
+  imageText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 10,
+  },
+});
+
+export const plantProfileScreenStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  image: {
+    width: 150,
+    height: 150,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+});
+
+.gitignore
+App.js
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { AppProvider } from './context/AppProvider';
+import BottomTabNavigator from './navigation/BottomTabNavigator';
+
+// Sovelluksen pääkomponentti
+export default function App() {
+  return (
+    <AppProvider>
+      <NavigationContainer>
+        <BottomTabNavigator />
+      </NavigationContainer>
+    </AppProvider>
+  );
+}
